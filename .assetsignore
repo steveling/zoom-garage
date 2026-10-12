@@ -1,0 +1,6 @@
+# Only the game itself is served; everything else stays private.
+.*
+node_modules
+scripts
+README.md
+wrangler.jsonc

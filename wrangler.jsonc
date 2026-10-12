@@ -1,0 +1,8 @@
+// Cloudflare Worker that serves the game at https://zoom.pocketgiggles.com.
+// The site is served straight from the repo root; .assetsignore keeps everything except the game files private.
+{
+  "name": "zoom-garage",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": "." },
+  "previews": {}
+}

@@ -1,0 +1,13 @@
+{
+  "name": "Zoom Garage",
+  "short_name": "Zoom Garage",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#2b3036",
+  "theme_color": "#2b3036",
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
