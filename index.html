@@ -49,7 +49,39 @@
           <button class="tab" type="button" role="tab" data-tab="sticker"><b>⭐</b>STICKER</button>
         </nav>
         <div class="options" id="options"></div>
-        <button class="big-btn big-btn--go" id="btnRace" type="button">RACE!</button>
+        <div class="race-row">
+          <button class="big-btn big-btn--go" id="btnRace" type="button">RACE!</button>
+          <button class="friend-btn" id="btnFriend" type="button" aria-label="Race a friend"><b>👫</b>FRIEND</button>
+        </div>
+      </section>
+
+      <!-- Race a friend on another phone -->
+      <section class="screen screen--friend" id="scr-friend" hidden>
+        <h2 class="screen-head">RACE A FRIEND</h2>
+        <div class="friend-pane" id="fChoose">
+          <button class="friend-choice" id="btnMakeCode" type="button"><b>📣</b>MAKE A CODE</button>
+          <button class="friend-choice friend-choice--b" id="btnTypeCode" type="button"><b>🔢</b>TYPE A CODE</button>
+        </div>
+        <div class="friend-pane" id="fHost" hidden>
+          <p class="friend-say">Tell your friend this code</p>
+          <div class="code" id="fCode"></div>
+          <p class="friend-wait">Waiting for a friend<span class="dots"><i>.</i><i>.</i><i>.</i></span></p>
+        </div>
+        <div class="friend-pane" id="fJoin" hidden>
+          <p class="friend-say">Type your friend's code</p>
+          <div class="code" id="fEntry"></div>
+          <div class="kid-pad" id="kidPad"></div>
+        </div>
+        <div class="friend-pane" id="fFound" hidden>
+          <div class="versus">
+            <div class="vs-car"><canvas id="fCarMe"></canvas><span id="fNameMe"></span></div>
+            <b class="vs">VS</b>
+            <div class="vs-car"><canvas id="fCarThem"></canvas><span id="fNameThem"></span></div>
+          </div>
+          <p class="friend-say">Get ready!</p>
+        </div>
+        <p class="friend-msg" id="fMsg" aria-live="polite"></p>
+        <button class="back-btn" id="btnFriendBack" type="button">◀ GARAGE</button>
       </section>
 
       <!-- Track picker -->
@@ -110,6 +142,7 @@
         <canvas id="finishCar" class="finish-car" aria-hidden="true"></canvas>
         <p class="finish-msg" id="finishMsg">Great driving!</p>
         <button class="big-btn" id="btnToPit" type="button">PIT STOP ▶</button>
+        <button class="back-btn" id="btnFinishGarage" type="button" hidden>◀ GARAGE</button>
       </section>
 
       <!-- New thing unlocked -->
@@ -201,6 +234,7 @@
           </label>
           <label class="field field--row"><span>Sounds</span><input id="setSound" type="checkbox" /></label>
           <label class="field field--row"><span>Talking voice</span><input id="setVoice" type="checkbox" /></label>
+          <label class="field field--row"><span>Race a friend (other phone, needs internet)</span><input id="setFriends" type="checkbox" /></label>
           <p class="sheet-note" id="panelStatus"></p>
           <div class="sheet-actions">
             <button type="button" class="sheet-btn" id="btnWakeNow">Wake the car now</button>
@@ -217,6 +251,7 @@
     <script src="js/draw.js"></script>
     <script src="js/race.js"></script>
     <script src="js/pit.js"></script>
+    <script src="js/net.js"></script>
     <script src="js/parents.js"></script>
     <script src="js/main.js"></script>
   </body>

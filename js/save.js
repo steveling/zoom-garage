@@ -9,7 +9,7 @@ function defaultSave() {
     car: { body: 'racer', color: '#e5383b', number: 5, sticker: 'bolt' },
     racesDone: 0,
     trophies: [], // { track, place, t }
-    settings: { perSession: 3, rest: 60, sound: true, voice: true },
+    settings: { perSession: 3, rest: 60, sound: true, voice: true, friends: true },
     session: { count: 0, sleepUntil: 0 },
   };
 }

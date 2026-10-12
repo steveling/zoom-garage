@@ -58,6 +58,11 @@ const Parents = (() => {
       persist();
       if (!e.target.checked && 'speechSynthesis' in window) speechSynthesis.cancel();
     });
+    $('setFriends').addEventListener('change', (e) => {
+      save.settings.friends = e.target.checked;
+      persist();
+      onChange();
+    });
     $('btnWakeNow').addEventListener('click', () => {
       save.session = { count: 0, sleepUntil: 0 };
       persist();
@@ -151,6 +156,7 @@ const Parents = (() => {
     $('setRest').value = String(save.settings.rest);
     $('setSound').checked = save.settings.sound;
     $('setVoice').checked = save.settings.voice;
+    $('setFriends').checked = save.settings.friends !== false;
     const sleeping = isSleeping();
     status(`Races finished: ${save.racesDone}. ` + (sleeping ? 'The car is resting right now.' : `${racesLeft()} race${racesLeft() === 1 ? '' : 's'} left before bedtime.`));
     $('parentPanel').hidden = false;

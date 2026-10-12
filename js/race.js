@@ -21,6 +21,9 @@ const Race = (() => {
   const gasPointers = new Set();
   let keyGas = false;
   const ui = {};
+  // Options for this race. Friend races pass: friend {name, car}, seed, feat, lane, send.
+  let opt = {};
+  const feat = (f) => (opt.feat ? !!opt.feat[f] : has(f));
 
   // ---------- road shape ----------
   function cx(tr, d) {
@@ -57,12 +60,14 @@ const Race = (() => {
   function buildItems(tr) {
     const items = [];
     const total = LAP * LAPS;
-    const steer = has('steer');
-    let seed = Math.floor(Math.random() * 10000);
+    const steer = feat('steer');
+    let seed = opt.seed != null ? opt.seed : Math.floor(Math.random() * 10000);
     const rnd = () => hash(++seed);
-    if (has('turboPads')) {
+    if (feat('turboPads')) {
       for (let d = 900; d < total - 400; d += 1400 + rnd() * 500) {
-        items.push({ k: 'pad', d, lane: steer ? Math.floor(rnd() * 3) : 1 });
+        if (steer) items.push({ k: 'pad', d, lane: Math.floor(rnd() * 3) });
+        else if (opt.friend) { items.push({ k: 'pad', d, lane: 0 }); items.push({ k: 'pad', d, lane: 2 }); }
+        else items.push({ k: 'pad', d, lane: 1 });
       }
     }
     if (steer) {
@@ -73,7 +78,7 @@ const Race = (() => {
         if (rnd() < 0.35) items.push({ k: 'cone', d, lane: (lane + 1 + Math.floor(rnd() * 2)) % 3 });
       }
     }
-    if (has('turboBtn')) {
+    if (feat('turboBtn')) {
       for (let d = 1100; d < total - 300; d += 800 + rnd() * 500) {
         if (items.some((it) => Math.abs(it.d - d) < 220)) continue;
         const lane = steer ? Math.floor(rnd() * 3) : 1;
@@ -110,7 +115,8 @@ const Race = (() => {
     }));
   }
 
-  function start(trackId, onDone) {
+  function start(trackId, onDone, options) {
+    opt = options || {};
     cv = cv || document.getElementById('raceCanvas');
     ctx = cv.getContext('2d');
     ['btnGas', 'btnLeft', 'btnRight', 'btnTurbo', 'hudLap', 'hudPos', 'lights', 'raceBanner', 'curveChip', 'turboRing', 'pauseMenu']
@@ -121,13 +127,16 @@ const Race = (() => {
     keyGas = false;
     s = {
       track, onDone, t: 0, phase: 'count', countT: 3.4, lastLight: -1,
-      p: { d: 0, lane: 1, laneX: 1, speed: 0, turbo: 0, meter: 0, skidT: 0, overT: 0, wobble: 0, lap: 1, fin: false, place: 0 },
-      rivals: makeRivals(tIdx === 0), items: buildItems(track), signs: buildSigns(track),
+      p: { d: 0, lane: opt.lane != null ? opt.lane : 1, laneX: opt.lane != null ? opt.lane : 1, speed: 0, turbo: 0, meter: 0, skidT: 0, overT: 0, wobble: 0, lap: 1, fin: false, place: 0 },
+      rivals: opt.friend ? [] : makeRivals(tIdx === 0), items: buildItems(track), signs: buildSigns(track),
       cam: { x: cx(track, 0) }, zoom: 1, particles: [], skids: 0, paused: false, doneT: 0, reported: false,
-      hud: {}, bannerT: 0,
+      hud: {}, bannerT: 0, sendT: 0,
+      remote: opt.friend
+        ? { car: opt.friend.car, name: opt.friend.name, d: 0, td: 0, speed: 0, lane: 2 - (opt.lane || 0), laneX: 2 - (opt.lane || 0), tb: 0, wb: 0, fin: false, finT: 0, gone: false }
+        : null,
     };
-    ui.btnLeft.hidden = ui.btnRight.hidden = !has('steer');
-    ui.btnTurbo.hidden = !has('turboBtn');
+    ui.btnLeft.hidden = ui.btnRight.hidden = !feat('steer');
+    ui.btnTurbo.hidden = !feat('turboBtn');
     ui.pauseMenu.hidden = true;
     ui.lights.hidden = false;
     ui.lights.className = 'lights';
@@ -172,7 +181,7 @@ const Race = (() => {
   function gasUp(id) { gasPointers.delete(id); }
   function setKeyGas(on) { keyGas = on; }
   function steer(dir) {
-    if (!s || s.paused || !has('steer') || s.p.fin) return;
+    if (!s || s.paused || !feat('steer') || s.p.fin) return;
     const n = clamp(s.p.lane + dir, 0, 2);
     if (n !== s.p.lane) { s.p.lane = n; Sound.tap(); }
   }
@@ -250,7 +259,7 @@ const Race = (() => {
 
   function pickLane(r) {
     const p = s.p;
-    const steerOn = has('steer');
+    const steerOn = feat('steer');
     let best = r.lane;
     let bestScore = Infinity;
     for (let l = 0; l < 3; l++) {
@@ -288,7 +297,7 @@ const Race = (() => {
       r.laneX += (r.lane - r.laneX) * Math.min(1, 3 * dt);
       if (r.d >= LAP * LAPS) r.fin = true;
     }
-    if (has('steer')) {
+    if (feat('steer')) {
       for (const r of s.rivals) {
         if (Math.abs(r.laneX - p.laneX) > 0.6) continue;
         const g = r.d - p.d;
@@ -367,6 +376,7 @@ const Race = (() => {
       }
 
       updateRivals(dt);
+      updateRemote(dt);
 
       const lap = Math.min(LAPS, Math.floor(p.d / LAP) + 1);
       if (lap > p.lap && !p.fin) {
@@ -378,7 +388,13 @@ const Race = (() => {
 
       if (!p.fin && p.d >= LAP * LAPS) {
         p.fin = true;
-        p.place = 1 + s.rivals.filter((r) => r.fin).length;
+        if (opt.friend) {
+          const r = s.remote;
+          p.place = r && r.fin && r.finT <= s.t ? 2 : 1;
+          opt.send && opt.send({ k: 'fin', t: s.t });
+        } else {
+          p.place = 1 + s.rivals.filter((r) => r.fin).length;
+        }
         s.phase = 'done';
         banner(PLACE_WORD[p.place] + '!');
         Sound.cheer();
@@ -388,7 +404,7 @@ const Race = (() => {
         s.doneT += dt;
         if (s.doneT > 2.4 && !s.reported) {
           s.reported = true;
-          const result = { place: p.place, track: tr.id };
+          const result = { place: p.place, track: tr.id, friend: !!opt.friend };
           const cb = s.onDone;
           stop();
           cb(result);
@@ -396,7 +412,7 @@ const Race = (() => {
         }
       }
 
-      if (has('turboBtn') && p.turbo <= 0) p.meter = Math.min(1, p.meter + dt * 0.03);
+      if (feat('turboBtn') && p.turbo <= 0) p.meter = Math.min(1, p.meter + dt * 0.03);
       Sound.engineSet(Math.min(1, p.speed / VMAX), p.turbo > 0);
 
       if (p.turbo > 0 && Math.random() < 0.5) puff(playerX(), p.d - 36, 'rgba(255,170,60,', 1, 10);
@@ -417,9 +433,52 @@ const Race = (() => {
     updateHud();
   }
 
+  function updateRemote(dt) {
+    const p = s.p;
+    if (opt.send && !p.fin) {
+      s.sendT -= dt;
+      if (s.sendT <= 0) {
+        s.sendT = 1 / 15;
+        opt.send({ k: 'st', d: Math.round(p.d), lx: +p.laneX.toFixed(2), sp: Math.round(p.speed), tb: p.turbo > 0 ? 1 : 0, wb: p.wobble > 0 ? 1 : 0 });
+      }
+    }
+    const r = s.remote;
+    if (!r || r.gone) return;
+    if (r.fin) r.speed = Math.max(0, r.speed - 160 * dt);
+    r.td += r.speed * dt;
+    r.d += (r.td - r.d) * Math.min(1, dt * 6);
+    r.laneX += (r.lane - r.laneX) * Math.min(1, dt * 8);
+  }
+
+  // Messages from the friend's phone.
+  function remoteState(m) {
+    const r = s && s.remote;
+    if (!r || r.fin) return;
+    const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
+    r.td = Math.max(0, Math.min(LAP * LAPS + 400, num(m.d, r.td)));
+    r.speed = Math.max(0, Math.min(VMAX * 1.6, num(m.sp, r.speed)));
+    r.lane = Math.max(0, Math.min(2, num(m.lx, r.lane)));
+    r.tb = m.tb ? 1 : 0;
+    r.wb = m.wb ? 1 : 0;
+  }
+  function remoteFinish(m) {
+    const r = s && s.remote;
+    if (!r || r.fin) return;
+    r.fin = true;
+    r.finT = typeof m.t === 'number' && isFinite(m.t) ? m.t : 1e9;
+    r.td = Math.max(r.td, LAP * LAPS);
+  }
+  function remoteLeft() {
+    const r = s && s.remote;
+    if (!r || r.gone) return;
+    r.gone = true;
+    if (!s.p.fin) banner('BYE ' + r.name + '!');
+  }
+
   function updateHud() {
     const p = s.p;
-    const place = p.fin ? p.place : 1 + s.rivals.filter((r) => r.fin || r.d > p.d).length;
+    const ahead = s.remote ? (s.remote.fin || s.remote.d > p.d ? 1 : 0) : s.rivals.filter((r) => r.fin || r.d > p.d).length;
+    const place = p.fin ? p.place : 1 + ahead;
     const lapText = `LAP ${p.lap}/${LAPS}`;
     if (s.hud.lap !== lapText) { s.hud.lap = lapText; ui.hudLap.textContent = lapText; }
     if (s.hud.place !== place) {
@@ -441,7 +500,7 @@ const Race = (() => {
     }
     const gasOn = gasPointers.size > 0 || keyGas;
     if (s.hud.gas !== gasOn) { s.hud.gas = gasOn; ui.btnGas.classList.toggle('is-down', gasOn); }
-    if (has('turboBtn')) {
+    if (feat('turboBtn')) {
       const m = Math.round(p.meter * 100);
       if (s.hud.meter !== m) {
         s.hud.meter = m;
@@ -729,13 +788,19 @@ const Race = (() => {
     // cars
     const carScale = sc * 0.92;
     const all = s.rivals.map((r) => ({ r, d: r.d })).concat([{ r: null, d: p.d }]);
+    if (s.remote && !s.remote.gone) all.push({ r: s.remote, d: s.remote.d, friend: true });
     all.sort((a, b) => b.d - a.d);
     for (const it of all) {
       if (it.d < dBot - 60 || it.d > dTop + 60) continue;
       if (it.r) {
         const r = it.r;
         const ang = Math.atan(slope(tr, r.d)) + (r.lane - r.laneX) * 0.35;
-        drawCar(ctx, r.car, toSX(cx(tr, r.d) + (r.laneX - 1) * LANE_W), toSY(r.d), carScale, { angle: ang, lights: tr.night });
+        let a2 = ang;
+        if (it.friend && r.wb) a2 += Math.sin(s.t * 26) * 0.4;
+        const rx = toSX(cx(tr, r.d) + (r.laneX - 1) * LANE_W);
+        const ry = toSY(r.d);
+        drawCar(ctx, r.car, rx, ry, carScale, { angle: a2, lights: tr.night, flame: it.friend && r.tb });
+        if (it.friend) nameTag(r.name, rx, ry - 46 * carScale);
       } else {
         let ang = Math.atan(slope(tr, p.d)) + (p.lane - p.laneX) * 0.35;
         if (p.wobble > 0) ang += Math.sin(s.t * 26) * 0.45 * Math.min(1, p.wobble);
@@ -757,6 +822,20 @@ const Race = (() => {
     }
   }
 
+  function nameTag(name, x, y) {
+    ctx.save();
+    ctx.font = `13px ${DISPLAY_FONT}`;
+    const w = ctx.measureText(name).width + 14;
+    ctx.fillStyle = 'rgba(27,33,48,0.8)';
+    rr(ctx, x - w / 2, y - 12, w, 22, 8);
+    ctx.fill();
+    ctx.fillStyle = '#fbfaf3';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(name, x, y);
+    ctx.restore();
+  }
+
   function loop(t) {
     if (!s) return;
     raf = requestAnimationFrame(loop);
@@ -766,5 +845,5 @@ const Race = (() => {
     if (s) render(s.paused ? 0 : dt);
   }
 
-  return { start, stop, resize, gasDown, gasUp, setKeyGas, steer, turbo, pause, isRunning };
+  return { start, stop, resize, gasDown, gasUp, setKeyGas, steer, turbo, pause, isRunning, remoteState, remoteFinish, remoteLeft };
 })();
