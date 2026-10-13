@@ -109,14 +109,17 @@
             <path class="bolt" d="M56 14 30 56h18l-6 30 28-44H52z" />
           </svg>
         </button>
+        <!-- Left thumb steers, right thumb drives. -->
         <div class="controls">
-          <button class="ctl ctl--steer" id="btnLeft" type="button" hidden aria-label="Move left">
-            <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M26 6 10 20l16 14z" /></svg>
-          </button>
+          <div class="steer-pad" id="steerPad" hidden>
+            <button class="ctl ctl--steer" id="btnLeft" type="button" aria-label="Move left">
+              <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M26 6 10 20l16 14z" /></svg>
+            </button>
+            <button class="ctl ctl--steer" id="btnRight" type="button" aria-label="Move right">
+              <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M14 6l16 14-16 14z" /></svg>
+            </button>
+          </div>
           <button class="ctl ctl--gas" id="btnGas" type="button" aria-label="Hold to go"><span>GO</span></button>
-          <button class="ctl ctl--steer" id="btnRight" type="button" hidden aria-label="Move right">
-            <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M14 6l16 14-16 14z" /></svg>
-          </button>
         </div>
         <div class="pause-menu" id="pauseMenu" hidden>
           <div class="pause-card">

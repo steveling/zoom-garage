@@ -7,7 +7,7 @@ Plain static site, no build step: open `index.html` from any web server.
 ## How it plays
 
 - **Garage:** pick the car, paint, number and sticker.
-- **Race:** hold the big GO button to drive. Let go before sharp curves (yellow signs, and a
+- **Race:** hold the big GO button (bottom right) to drive. Steering arrows, once unlocked, sit bottom left. Let go before sharp curves (yellow signs, and a
   "CURVE! LET GO" warning) or the car spins out for a moment. There is no crashing and no losing:
   every finish gets a trophy.
 - **Pit stop:** hold to fill the gas, rub off the mud, and later change the tires.

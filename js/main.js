@@ -613,8 +613,12 @@ function init() {
   // Race controls
   bindPress($('btnGas'), (e) => Race.gasDown(e.pointerId), (e) => Race.gasUp(e.pointerId));
   bindPress($('raceCanvas'), (e) => Race.gasDown(e.pointerId), (e) => Race.gasUp(e.pointerId));
-  bindPress($('btnLeft'), () => Race.steer(-1));
-  bindPress($('btnRight'), () => Race.steer(1));
+  // Steering reacts on touch-down (not on release) and shows a pressed state, since
+  // :active is unreliable once the touch is captured.
+  [['btnLeft', -1], ['btnRight', 1]].forEach(([id, dir]) => {
+    const el = $(id);
+    bindPress(el, () => { el.classList.add('is-down'); Race.steer(dir); }, () => el.classList.remove('is-down'));
+  });
   bindPress($('btnTurbo'), () => Race.turbo());
   $('btnPause').addEventListener('click', () => Race.pause(true));
   $('btnResume').addEventListener('click', () => Race.pause(false));

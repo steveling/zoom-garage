@@ -119,7 +119,7 @@ const Race = (() => {
     opt = options || {};
     cv = cv || document.getElementById('raceCanvas');
     ctx = cv.getContext('2d');
-    ['btnGas', 'btnLeft', 'btnRight', 'btnTurbo', 'hudLap', 'hudPos', 'lights', 'raceBanner', 'curveChip', 'turboRing', 'pauseMenu']
+    ['btnGas', 'steerPad', 'btnTurbo', 'hudLap', 'hudPos', 'lights', 'raceBanner', 'curveChip', 'turboRing', 'pauseMenu']
       .forEach((id) => (ui[id] = document.getElementById(id)));
     const tIdx = Math.max(0, TRACKS.findIndex((t) => t.id === trackId));
     const track = TRACKS[tIdx];
@@ -135,7 +135,7 @@ const Race = (() => {
         ? { car: opt.friend.car, name: opt.friend.name, d: 0, td: 0, speed: 0, lane: 2 - (opt.lane || 0), laneX: 2 - (opt.lane || 0), tb: 0, wb: 0, fin: false, finT: 0, gone: false }
         : null,
     };
-    ui.btnLeft.hidden = ui.btnRight.hidden = !feat('steer');
+    ui.steerPad.hidden = !feat('steer');
     ui.btnTurbo.hidden = !feat('turboBtn');
     ui.pauseMenu.hidden = true;
     ui.lights.hidden = false;
