@@ -300,6 +300,10 @@ function wireNet() {
       $('fEntry').innerHTML = codeBoxes('', 4);
       friendPane('fJoin', "Can't find that code. Try again!");
       Sound.say("I can't find that code. Try again!");
+    } else if (kind === 'full') {
+      joinEntry = '';
+      $('fEntry').innerHTML = codeBoxes('', 4);
+      friendPane('fJoin', 'Someone is already racing with that code.');
     } else {
       friendPane('fChoose', 'Racing a friend needs the internet.');
     }

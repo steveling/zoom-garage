@@ -1,8 +1,18 @@
 // Cloudflare Worker that serves the game at https://zoom.pocketgiggles.com.
-// The site is served straight from the repo root; .assetsignore keeps everything except the game files private.
+// Game files are served straight from the repo root as static assets (.assetsignore keeps the rest
+// private). Only /room/* runs worker.js: the friend-race relay, one Durable Object per race code.
 {
   "name": "zoom-garage",
+  "main": "worker.js",
   "compatibility_date": "2026-10-01",
-  "assets": { "directory": "." },
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS",
+    "run_worker_first": ["/room/*"]
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "RACE_ROOMS", "class_name": "RaceRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RaceRoom"] }],
   "previews": {}
 }

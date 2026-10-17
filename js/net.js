@@ -1,44 +1,19 @@
-// Friend races between two phones over PeerJS (WebRTC), the same way Capy Air visits work.
-// One phone makes a 4-digit code, the other types it in. No server of our own: PeerJS's free
-// broker only introduces the two phones, then race data goes phone to phone.
+// Friend races between two phones. Both phones connect to a small "race room" on this site's own
+// Cloudflare Worker (worker.js, /room/<code>), which passes messages between them. Going through
+// the server works on any network (home Wi-Fi, cellular, guest Wi-Fi), unlike a direct
+// phone-to-phone link. Only names, car looks and race positions are sent, and nothing is stored.
 
 const Net = (() => {
-  const PREFIX = 'zoomgarage-';
-  const PEER_SRC = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
-  const OPTS = {
-    debug: 0,
-    config: {
-      iceServers: [
-        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-        {
-          urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'],
-          username: 'peerjs',
-          credential: 'peerjsp',
-        },
-      ],
-    },
-  };
+  const CONNECT_MS = 10000;
+  const PING_MS = 20000;
 
-  let peer = null;
-  let conn = null;
+  let ws = null;
   let role = null; // 'host' | 'guest'
+  let paired = false;
   let handlers = {};
-  let joinTimer = 0;
-  let loading = null;
-
-  function loadPeer() {
-    if (typeof window.Peer === 'function') return Promise.resolve();
-    if (loading) return loading;
-    loading = new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = PEER_SRC;
-      s.async = true;
-      s.onload = () => (typeof window.Peer === 'function' ? resolve() : reject(new Error('no peer')));
-      s.onerror = () => { loading = null; s.remove(); reject(new Error('offline')); };
-      document.head.appendChild(s);
-    });
-    return loading;
-  }
+  let timer = 0;
+  let pinger = 0;
+  let gen = 0; // ignores events from sockets we already gave up on
 
   function emit(k, data) {
     if (handlers[k]) handlers[k](data);
@@ -46,75 +21,127 @@ const Net = (() => {
 
   function makeCode() {
     const a = new Uint32Array(1);
-    (window.crypto || { getRandomValues: (x) => { x[0] = Math.random() * 1e9; return x; } }).getRandomValues(a);
+    if (window.crypto && crypto.getRandomValues) crypto.getRandomValues(a);
+    else a[0] = Math.floor(Math.random() * 1e9);
     return String(1000 + (a[0] % 9000));
   }
 
-  function wire(c) {
-    conn = c;
-    c.on('open', () => emit('open'));
-    c.on('data', (d) => {
-      if (d && typeof d === 'object' && typeof d.k === 'string') emit('msg', d);
-    });
-    c.on('close', () => { if (conn === c) { conn = null; emit('left'); } });
-    c.on('error', () => {});
+  function roomUrl(code, r) {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${proto}//${location.host}/room/${code}?role=${r}`;
+  }
+
+  function stopTimers() {
+    clearTimeout(timer);
+    clearInterval(pinger);
+  }
+
+  // Opens one socket. `on` gets server notes ({k:'ready'|'paired'|'taken'|'nohost'|'full'|'left'}).
+  function open(code, r, on) {
+    const my = ++gen;
+    let sock;
+    try {
+      sock = new WebSocket(roomUrl(code, r));
+    } catch (_) {
+      setTimeout(() => my === gen && emit('fail', 'net'), 0);
+      return;
+    }
+    ws = sock;
+    timer = setTimeout(() => {
+      if (my !== gen || paired || (r === 'host' && sock.readyState === WebSocket.OPEN)) return;
+      drop();
+      emit('fail', r === 'guest' ? 'notfound' : 'net');
+    }, CONNECT_MS);
+    sock.onopen = () => {
+      if (my !== gen) return;
+      clearInterval(pinger);
+      pinger = setInterval(() => { try { sock.send('ping'); } catch (_) {} }, PING_MS);
+    };
+    sock.onmessage = (ev) => {
+      if (my !== gen || typeof ev.data !== 'string' || ev.data === 'pong') return;
+      let m;
+      try { m = JSON.parse(ev.data); } catch (_) { return; }
+      if (!m || typeof m.k !== 'string') return;
+      on(m);
+    };
+    sock.onclose = () => {
+      if (my !== gen) return;
+      const was = paired;
+      drop();
+      if (was) emit('left');
+      else emit('fail', 'net');
+    };
+    sock.onerror = () => {};
+  }
+
+  // Server notes common to both sides; everything else is the friend's message.
+  function common(m) {
+    if (m.k === 'paired') {
+      paired = true;
+      clearTimeout(timer);
+      emit('open');
+    } else if (m.k === 'left') {
+      if (!paired) return;
+      paired = false;
+      emit('left');
+    } else {
+      emit('msg', m);
+    }
   }
 
   async function host(onCode) {
     close();
     role = 'host';
-    await loadPeer();
-    const tryCode = () => {
+    let tries = 0;
+    const attempt = () => {
       const code = makeCode();
-      peer = new window.Peer(PREFIX + code, OPTS);
-      peer.on('open', () => onCode(code));
-      peer.on('connection', (c) => {
-        if (conn) { c.on('open', () => c.close()); return; }
-        wire(c);
-      });
-      peer.on('error', (e) => {
-        if (e && e.type === 'unavailable-id') {
-          try { peer.destroy(); } catch (_) {}
-          tryCode();
-        } else if (!conn) {
-          emit('fail', 'net');
-        }
+      open(code, 'host', (m) => {
+        if (m.k === 'ready') { clearTimeout(timer); onCode(code); }
+        else if (m.k === 'taken') {
+          if (++tries > 8) { drop(); emit('fail', 'net'); return; }
+          drop(true);
+          attempt();
+        } else common(m);
       });
     };
-    tryCode();
+    attempt();
   }
 
   async function join(code) {
     close();
     role = 'guest';
-    await loadPeer();
-    peer = new window.Peer(OPTS);
-    joinTimer = setTimeout(() => { if (!conn || !conn.open) emit('fail', 'notfound'); }, 12000);
-    peer.on('open', () => wire(peer.connect(PREFIX + code, { reliable: true })));
-    peer.on('error', (e) => {
-      clearTimeout(joinTimer);
-      if (!conn || !conn.open) emit('fail', e && e.type === 'peer-unavailable' ? 'notfound' : 'net');
+    open(code, 'guest', (m) => {
+      if (m.k === 'nohost') { drop(); emit('fail', 'notfound'); }
+      else if (m.k === 'full') { drop(); emit('fail', 'full'); }
+      else common(m);
     });
   }
 
   function send(obj) {
-    try { if (conn && conn.open) conn.send(obj); } catch (_) {}
+    try { if (ws && paired && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj)); } catch (_) {}
+  }
+
+  // Forget the current socket without telling anyone (keepRole: retrying as host).
+  function drop(keepRole) {
+    stopTimers();
+    gen++;
+    const s = ws;
+    ws = null;
+    paired = false;
+    if (!keepRole) role = null;
+    try { if (s) s.close(1000, 'bye'); } catch (_) {}
   }
 
   function close() {
-    clearTimeout(joinTimer);
-    try { if (conn) { send({ k: 'bye' }); conn.close(); } } catch (_) {}
-    try { if (peer) peer.destroy(); } catch (_) {}
-    conn = null;
-    peer = null;
-    role = null;
+    if (paired) send({ k: 'bye' });
+    drop();
   }
 
   return {
     host, join, send, close,
     on(k, fn) { handlers[k] = fn; },
     get role() { return role; },
-    get connected() { return !!(conn && conn.open); },
-    clearJoinTimer() { clearTimeout(joinTimer); },
+    get connected() { return paired && !!ws && ws.readyState === WebSocket.OPEN; },
+    clearJoinTimer() { clearTimeout(timer); },
   };
 })();
